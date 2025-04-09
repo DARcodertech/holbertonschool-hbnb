@@ -1,0 +1,63 @@
+.logo {
+    height: 40px;
+    vertical-align: middle;
+}
+
+.login-button {
+    float: right;
+    background-color: #007bff;
+    color: white;
+    padding: 0.5rem 1rem;
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+.place-card,
+.review-card {
+    margin: 20px 0;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    background-color: white;
+}
+
+.details-button {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 0.4rem 0.8rem;
+    background-color: #28a745;
+    color: white;
+    text-decoration: none;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.add-review.form {
+    margin-top: 2rem;
+    padding: 1rem;
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+}
+
+.add-review label,
+.add-review textarea,
+.add-review select {
+    display: block;
+    margin-bottom: 1rem;
+    width: 100%;
+}
+
+.add-review textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+footer {
+    background-color: #333;
+    color: #fff;
+    text-align: center;
+    padding: 1rem;
+    margin-top: 2rem;
+}
