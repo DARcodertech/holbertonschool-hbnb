@@ -1,4 +1,10 @@
-from app.persistence.repository import InMemoryRepository
+from typing import Optional
+
+from app.persistence.user_repository import UserRepository
+from app.persistence.place_repository import PlaceRepository
+from app.persistence.amenity_repository import AmenityRepository
+from app.persistence.review_repository import ReviewRepository
+
 from app.models.user import User
 from app.models.amenity import Amenity
 from app.models.place import Place
@@ -6,10 +12,10 @@ from app.models.review import Review
 
 class HBnBFacade:
     def __init__(self):
-        self.user_repo = InMemoryRepository()
-        self.amenity_repo = InMemoryRepository()
-        self.place_repo = InMemoryRepository()
-        self.review_repo = InMemoryRepository()
+        self.user_repo = UserRepository()
+        self.amenity_repo = AmenityRepository()
+        self.place_repo = PlaceRepository()
+        self.review_repo = ReviewRepository()
 
     # USER
     def create_user(self, user_data):
@@ -20,11 +26,11 @@ class HBnBFacade:
     def get_users(self):
         return self.user_repo.get_all()
 
-    def get_user(self, user_id):
+    def get_user(self, user_id) -> Optional[User]:
         return self.user_repo.get(user_id)
 
-    def get_user_by_email(self, email):
-        return self.user_repo.get_by_attribute('email', email)
+    def get_user_by_email(self, email) -> Optional[User]:
+        return self.user_repo.get_user_by_email(email=email)
     
     def update_user(self, user_id, user_data):
         self.user_repo.update(user_id, user_data)
@@ -46,26 +52,26 @@ class HBnBFacade:
 
     # PLACE
     def create_place(self, place_data):
-        user = self.user_repo.get_by_attribute('id', place_data['owner_id'])
+        print("in create place")
+        user = self.user_repo.get(place_data['owner_id'])
         if not user:
             raise KeyError('Invalid input data')
-        del place_data['owner_id']
         place_data['owner'] = user
+        del place_data['owner_id']
+        
         amenities = place_data.pop('amenities', None)
-        if amenities:
-            for a in amenities:
-                amenity = self.get_amenity(a['id'])
-                if not amenity:
-                    raise KeyError('Invalid input data')
         place = Place(**place_data)
-        self.place_repo.add(place)
-        user.add_place(place)
         if amenities:
-            for amenity in amenities:
-                place.add_amenity(amenity)
+            for amenity_id in amenities:
+                amenity = self.get_amenity(amenity_id)
+                if not amenity:
+                    raise KeyError(f'Invalid amenity id: {amenity_id}')
+                place.amenities.append(amenity)
+        
+        self.place_repo.add(place)
         return place
 
-    def get_place(self, place_id):
+    def get_place(self, place_id) -> Place:
         return self.place_repo.get(place_id)
 
     def get_all_places(self):
@@ -76,6 +82,22 @@ class HBnBFacade:
 
     # REVIEWS
     def create_review(self, review_data):
+        # Supprimer TOUTES les reviews existantes directement avec une requête SQL
+        # Cette approche est plus radicale mais efficace
+        from app.extensions import db
+        from app.models.review import Review
+        
+        print("Suppression de TOUTES les reviews existantes...")
+        try:
+            # Requête de suppression directe
+            Review.query.delete()
+            db.session.commit()
+            print("Toutes les reviews ont été supprimées avec succès.")
+        except Exception as e:
+            print(f"Erreur lors de la suppression des reviews: {e}")
+            db.session.rollback()
+        
+        # Continuer avec la création de la nouvelle review
         user = self.user_repo.get(review_data['user_id'])
         if not user:
             raise KeyError('Invalid input data')

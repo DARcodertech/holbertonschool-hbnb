@@ -1,9 +1,9 @@
 from flask_restx import Namespace, Resource, fields
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 from app.services import facade
 
 api = Namespace('places', description='Place operations')
 
-# Define the models for related entities
 amenity_model = api.model('PlaceAmenity', {
     'id': fields.String(description='Amenity ID'),
     'name': fields.String(description='Name of the amenity')
@@ -16,34 +16,27 @@ user_model = api.model('PlaceUser', {
     'email': fields.String(description='Email of the owner')
 })
 
-# Define the place model for input validation and documentation
 place_model = api.model('Place', {
     'title': fields.String(required=True, description='Title of the place'),
     'description': fields.String(description='Description of the place'),
     'price': fields.Float(required=True, description='Price per night'),
     'latitude': fields.Float(required=True, description='Latitude of the place'),
     'longitude': fields.Float(required=True, description='Longitude of the place'),
-    'owner_id': fields.String(required=True, description='ID of the owner'),
-    'owner': fields.Nested(user_model, description='Owner details'),
     'amenities': fields.List(fields.String, required=True, description="List of amenities ID's")
 })
 
 @api.route('/')
 class PlaceList(Resource):
+    @jwt_required()
     @api.expect(place_model)
     @api.response(201, 'Place successfully created')
     @api.response(400, 'Invalid input data')
     def post(self):
         """Register a new place"""
         place_data = api.payload
-        owner = place_data.get('owner_id', None)
-
-        if owner is None or len(owner) == 0:
-            return {'error': 'Invalid input data.'}, 400
-
-        user = facade.user_repo.get_by_attribute('id', owner)
-        if not user:
-            return {'error': 'Invalid input data'}, 400
+        sub = get_jwt_identity()
+        place_data['owner_id'] = sub
+        print("in")
         try:
             new_place = facade.create_place(place_data)
             return new_place.to_dict(), 201
@@ -65,18 +58,25 @@ class PlaceResource(Resource):
         place = facade.get_place(place_id)
         if not place:
             return {'error': 'Place not found'}, 404
-        return place.to_dict_list(), 200
+        return place.to_dict(), 200
 
+    @jwt_required()
     @api.expect(place_model)
     @api.response(200, 'Place updated successfully')
+    @api.response(401, 'Not Authenticated')
+    @api.response(403, 'Unauthorized action')
     @api.response(404, 'Place not found')
     @api.response(400, 'Invalid input data')
     def put(self, place_id):
         """Update a place's information"""
         place_data = api.payload
+        sub = get_jwt_identity()
+        is_admin: bool = get_jwt().get("is_admin", False)
         place = facade.get_place(place_id)
         if not place:
             return {'error': 'Place not found'}, 404
+        if place.owner_id != sub or not is_admin:
+            return {'error': 'Unauthorized action'}, 403
         try:
             facade.update_place(place_id, place_data)
             return {'message': 'Place updated successfully'}, 200
@@ -116,5 +116,16 @@ class PlaceReviewList(Resource):
         place = facade.get_place(place_id)
         if not place:
             return {'error': 'Place not found'}, 404
-        return [review.to_dict() for review in place.reviews], 200
+        
+        # Utiliser un set d'IDs pour vérifier les doublons
+        review_ids = set()
+        unique_reviews = []
+        
+        for review in place.reviews:
+            # Ne pas ajouter de reviews en double
+            if review.id not in review_ids:
+                review_ids.add(review.id)
+                unique_reviews.append(review.to_dict())
+        
+        return unique_reviews, 200
     

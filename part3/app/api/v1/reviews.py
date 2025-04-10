@@ -1,4 +1,5 @@
 from flask_restx import Namespace, Resource, fields
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.services import facade
 
 api = Namespace('reviews', description='Review operations')
@@ -16,17 +17,28 @@ class ReviewList(Resource):
     @api.expect(review_model)
     @api.response(201, 'Review successfully created')
     @api.response(400, 'Invalid input data')
+    @jwt_required()
     def post(self):
         """Register a new review"""
+        print("Review POST request received")
         review_data = api.payload
         place = facade.get_place(review_data['place_id'])
         if not place:
             return {'error': 'Place not found'}, 400
-        user = facade.get_user(review_data['user_id'])
+        
+        # Get user from token instead of relying on user_id in the request
+        user_id = get_jwt_identity()
+        user = facade.get_user(user_id)
+        
         if not user:
             return {'error': 'User not found'}, 400
-        if place.owner.id == user.id:
+        
+        # Override user_id with the authenticated user's ID
+        review_data['user_id'] = user_id
+        
+        if place.owner_id == user_id:
             return {'error': 'User cannot review their own place'}, 400
+        
         try:
             new_review = facade.create_review(review_data)
             return new_review.to_dict(), 201
